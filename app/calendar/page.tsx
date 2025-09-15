@@ -1,10 +1,11 @@
 "use client";
-import Link from "next/link";
+
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 type Dream = {
   id: string;      // random id
-  date: string;    // "YYYY-MM-DD" (local)
+  date: string;    // "YYYY-MM-DD" (LOCAL date)
   text: string;
   symbol: string;  // emoji
 };
@@ -12,7 +13,7 @@ type Dream = {
 const STORAGE_KEY = "dream-nook:entries";
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-// ---- local date helpers ----
+// ---- helpers ----
 function ymdLocal(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -24,38 +25,47 @@ function daysInMonth(year: number, monthIndex0: number) {
 }
 
 export default function CalendarPage() {
-  // 1) Load dreams
+  // 1) Load & keep in sync with localStorage
   const [dreams, setDreams] = useState<Dream[]>([]);
-  useEffect(() => {
+
+  const loadFromStorage = () => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setDreams(JSON.parse(raw));
-    } catch {}
+      setDreams(raw ? JSON.parse(raw) : []);
+    } catch {
+      setDreams([]);
+    }
+  };
+
+  useEffect(() => {
+    // initial load
+    loadFromStorage();
+
+    // update when storage changes (other tabs / same tab sometimes)
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY) loadFromStorage();
+    };
+    window.addEventListener("storage", onStorage);
+
+    // update when tab regains focus (Safari / Next.js navigation quirks)
+    const onFocus = () => loadFromStorage();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") loadFromStorage();
+    });
+
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", onFocus);
+    };
   }, []);
 
-  // 2) Persist on change
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(dreams));
-  }, [dreams]);
-
-  // 3) Month state
+  // 2) Month state & math
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth()); // 0..11
 
-  // 4) Group by date (supports multiple per day)
-  const dreamsByDate = useMemo(() => {
-    const map = new Map<string, Dream[]>();
-    for (const d of dreams) {
-      const list = map.get(d.date) ?? [];
-      list.push(d);           // newest first (home page prepends)
-      map.set(d.date, list);
-    }
-    return map;
-  }, [dreams]);
-
-  // 5) Calendar math
-  const firstOfMonth = new Date(year, month, 1);
+  const firstOfMonth = useMemo(() => new Date(year, month, 1), [year, month]);
   const leadingBlanks = firstOfMonth.getDay();
   const totalDays = daysInMonth(year, month);
   const todayStr = ymdLocal(new Date());
@@ -78,18 +88,27 @@ export default function CalendarPage() {
     setMonth(d.getMonth());
   }
 
-  // 6) Modal state
+  // 3) Group by date (supports multiple entries per day)
+  const dreamsByDate = useMemo(() => {
+    const map = new Map<string, Dream[]>();
+    for (const d of dreams) {
+      const list = map.get(d.date) ?? [];
+      list.push(d); // newest first if you prepend on save
+      map.set(d.date, list);
+    }
+    return map;
+  }, [dreams]);
+
+  // 4) Modal state & delete
   const [openDate, setOpenDate] = useState<string | null>(null);
   const openList = openDate ? dreamsByDate.get(openDate) ?? [] : [];
 
-  // 7) Delete with confirm
   const deleteDream = (id: string) => {
     setDreams((prev) => {
       const next = prev.filter((d) => d.id !== id);
-      if (openDate) {
-        const remains = next.some((d) => d.date === openDate);
-        if (!remains) setOpenDate(null); // close if empty now
-      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); // persist immediately
+      // if last of the day removed, close modal
+      if (openDate && !next.some((d) => d.date === openDate)) setOpenDate(null);
       return next;
     });
   };
@@ -99,7 +118,7 @@ export default function CalendarPage() {
       <div className="w-full max-w-2xl p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
-        <Link href="/" className="text-gray-600 hover:underline">← back</Link>
+          <Link href="/" className="text-gray-600 hover:underline">← back</Link>
 
           <div className="flex items-center gap-2">
             <button onClick={prevMonth} className="px-2 py-1 border rounded">◀</button>
@@ -109,9 +128,18 @@ export default function CalendarPage() {
             <button onClick={nextMonth} className="px-2 py-1 border rounded">▶</button>
           </div>
 
-          <button onClick={jumpToToday} className="text-sm text-indigo-600 underline">
-            today
-          </button>
+          <div className="flex items-center gap-3">
+            <button onClick={jumpToToday} className="text-sm text-indigo-600 underline">
+              today
+            </button>
+            <button
+              onClick={loadFromStorage}
+              className="text-sm px-2 py-1 border rounded"
+              title="Reload from local storage"
+            >
+              refresh
+            </button>
+          </div>
         </div>
 
         {/* Weekday header */}
@@ -173,7 +201,7 @@ export default function CalendarPage() {
           <div className="fixed inset-0 bg-black/30 flex items-center justify-center">
             <div className="bg-white w-full max-w-md rounded-lg p-4 shadow-lg">
               <div className="flex items-start justify-between">
-                <div /> {/* intentionally no big date here */}
+                <div /> {/* no big date */}
                 <button onClick={() => setOpenDate(null)} className="text-gray-600">✕</button>
               </div>
 
@@ -189,7 +217,7 @@ export default function CalendarPage() {
                         <p className="whitespace-pre-wrap flex-1">{d.text}</p>
                       </div>
 
-                      {/* "remove" CTA (only on hover) */}
+                      {/* "remove" (hover) with confirm */}
                       <button
                         onClick={() => {
                           if (confirm("Confirm you want to remove this dream?")) {

@@ -1,21 +1,44 @@
+
 "use client";
-import Link from "next/link";
+
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 
 type Dream = {
   id: string;      // random id
-  date: string;    // "YYYY-MM-DD"
+  date: string;    // "YYYY-MM-DD" (LOCAL date)
   text: string;
   symbol: string;  // emoji
 };
 
 const STORAGE_KEY = "dream-nook:entries";
 
-// Dreamy emoji palette
+// Local date helper (avoid UTC off-by-one)
+function ymdLocal(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// Expanded dream emoji palette (~180)
 const SYMBOLS = [
-  "🌙","⭐","☁️","🌊","🔥","🌸","🪐","🔮","🗝️","🦋",
-  "🌌","🕯️","🌿","🛸","👁️","🪞","⏳","📜","🏰","🌠",
-  "🛏️","🌲","🐚","⚡","🪶","💭","✨","🌑","🌕","🌀"
+  // Night & sky
+  "🌙","⭐","🌟","✨","🌌","🌠","☁️","🌤️","🌥️","⛅","🌑","🌒","🌓","🌔","🌕","🌖","🌗","🌘","🌚","🌛","🌜","🌞","🌈",
+  // Nature & elements
+  "🔥","💧","🌊","⛰️","🏔️","🌋","🌪️","🌀","🍃","🍂","🍁","🌿","🌱","🌳","🌲","🌴","🌵","🌸","🌼","🌻","🌹","🌺","🥀","🌷","🪻","🌾",
+  // Animals & dreamlike creatures
+  "🦋","🐝","🐞","🐌","🦄","🐉","🐲","🦉","🦇","🦢","🐚","🐠","🐟","🐬","🐳","🐋","🦈","🪼","🦑","🦐","🦞","🦂","🕷️","🕸️",
+  // Mystical & objects
+  "🔮","🪄","🪐","👁️","🪞","⏳","🕰️","⌛","📜","📖","📚","🗝️","🛡️","⚔️","🪶","🕯️","💎","💠","🔷","🔶","🔺","🔻",
+  // Places & structures
+  "🏰","🏯","🏝️","🏜️","🌁","🌉","🛖","🕋","🏛️","🛕","🕍","⛩️","⛪","🗿",
+  // Celestial & cosmic
+  "🚀","🛸","🛰️","☄️","🌍","🌎","🌏","💫",
+  // Sleep & cozy
+  "🛏️","🛋️","🪑","🧸","🛌","💤","😴","🛎️",
+  // Symbols & feelings
+  "💭","❤️","🖤","💜","💙","💚","💛","🧡","🤍","💗","💓","💞","💕","❣️","💔","⚡","☮️","☯️","♾️","✴️","✡️","☪️","☦️","🕉️","☸️","✝️","⛎"
 ];
 
 export default function HomePage() {
@@ -55,15 +78,17 @@ export default function HomePage() {
     } catch {}
   }, []);
 
-  // save to localStorage
+  // save to localStorage whenever dreams change
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(dreams));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(dreams));
+    } catch {}
   }, [dreams]);
 
-  // add new dream (multiple per day allowed)
+  // add new dream (multiple per day allowed) — using LOCAL date
   const addDream = () => {
     if (!text.trim()) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = ymdLocal(new Date()); // LOCAL date
 
     const newDream: Dream = {
       id: Math.random().toString(36).slice(2, 9),
@@ -72,7 +97,8 @@ export default function HomePage() {
       symbol,
     };
 
-    setDreams([newDream, ...dreams]);
+    // Update state (then effect persists to localStorage)
+    setDreams((prev) => [newDream, ...prev]);
     setText("");
 
     // confirmation message
@@ -88,7 +114,7 @@ export default function HomePage() {
         {/* Title + subtitle */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold">Dream Nook 🌙</h1>
-          <p className="text-gray-600 text-base mt-2 text-center whitespace-nowrap">
+          <p className="text-gray-600 text-base mt-2 text-center leading-snug">
             capture the dream before it fades. just a fragment and a symbol.
           </p>
         </div>
@@ -97,7 +123,7 @@ export default function HomePage() {
         <div className="flex gap-2 mb-2 items-center">
           {/* Dream text */}
           <textarea
-            placeholder="Pink bike, sprinklers by the lake..."
+            placeholder="Pink bike, childhood home..."
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={1}
@@ -118,7 +144,7 @@ export default function HomePage() {
 
             {pickerOpen && (
               <div
-                className="absolute right-0 mt-2 z-10 w-56 rounded-lg border bg-white p-2 shadow-lg"
+                className="absolute right-0 mt-2 z-10 w-64 max-h-64 overflow-y-auto rounded-lg border bg-white p-2 shadow-lg"
                 role="dialog"
                 aria-label="Emoji picker"
               >
@@ -160,11 +186,11 @@ export default function HomePage() {
           {message}
         </div>
 
-        {/* Right-aligned link */}
+        {/* Right-aligned link (use next/link) */}
         <div className="text-right mt-2">
-        <Link href="/calendar" className="text-indigo-600 underline text-sm">
+          <Link href="/calendar" className="text-indigo-600 underline text-sm">
             view all dreams →
-            </Link>
+          </Link>
         </div>
       </div>
     </main>
