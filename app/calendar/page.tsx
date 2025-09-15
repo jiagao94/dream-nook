@@ -1,5 +1,5 @@
 "use client";
-
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 type Dream = {
@@ -99,7 +99,7 @@ export default function CalendarPage() {
       <div className="w-full max-w-2xl p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
-          <a href="/" className="text-gray-600 hover:underline">← back</a>
+        <Link href="/" className="text-gray-600 hover:underline">← back</Link>
 
           <div className="flex items-center gap-2">
             <button onClick={prevMonth} className="px-2 py-1 border rounded">◀</button>

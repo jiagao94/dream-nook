@@ -1,5 +1,5 @@
 "use client";
-
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 type Dream = {
@@ -162,9 +162,9 @@ export default function HomePage() {
 
         {/* Right-aligned link */}
         <div className="text-right mt-2">
-          <a href="/calendar" className="text-indigo-600 underline text-sm">
+        <Link href="/calendar" className="text-indigo-600 underline text-sm">
             view all dreams →
-          </a>
+            </Link>
         </div>
       </div>
     </main>
